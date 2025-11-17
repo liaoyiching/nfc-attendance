@@ -1,349 +1,132 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>NFC 打卡（行動大按鈕）</title>
-<style>
-  :root{--bg:#F4F6F9;--card:#ffffff;--accent:#0b84ff;--muted:#666}
-  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
-  body{background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}
-  .wrap{width:100%;max-width:460px}
-  .card{background:var(--card);border-radius:14px;padding:18px;box-shadow:0 6px 18px rgba(10,20,40,0.08)}
-  h1{margin:0;font-size:20px}
-  p.sub{color:var(--muted);margin:8px 0 18px;font-size:14px}
-  .big-btn{display:block;width:100%;padding:18px;border-radius:12px;border:0;font-size:18px;background:linear-gradient(180deg,var(--accent),#066fe0);color:#fff;box-shadow:0 6px 18px rgba(11,132,255,0.18);margin-top:10px}
-  .big-btn.secondary{background:#eee;color:#111;box-shadow:none}
-  .small{font-size:13px;color:var(--muted);margin-top:10px;text-align:center}
-  input{width:100%;padding:12px;border-radius:10px;border:1px solid #e6e9ef;margin-top:8px;font-size:16px}
-  .row{display:flex;gap:8px}
-  .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#f0f4ff;color:#034ea2;font-weight:600;font-size:13px}
-  .hidden{display:none}
-  #records{max-height:300px;overflow:auto;margin-top:12px}
-  .rec{padding:10px;border-bottom:1px solid #f1f1f3;font-size:14px}
-  footer{margin-top:14px;text-align:center;color:var(--muted);font-size:12px}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFC 員工打卡系統</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6f6f6;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 400px;
+      margin: auto;
+      background: #fff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      margin-top: 20px;
+      border: none;
+      background: #1a73e8;
+      color: white;
+      font-size: 18px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .5;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    #error {
+      margin-top: 10px;
+      color: red;
+      display: none;
+    }
+  </style>
 </head>
+
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h1>NFC 打卡系統</h1>
-      <p class="sub">請將手機貼近 NFC 標籤或按下「打卡」按鈕。</p>
+  <div class="container">
+    <h2>NFC 員工打卡</h2>
+    <p>請使用 NFC 卡感應或按下按鈕進行打卡。</p>
 
-      <div id="status" class="pill">載入中…</div>
+    <!-- NFC 打卡按鈕（手機沒 NFC 也可使用） -->
+    <button id="btnScan">打卡</button>
 
-      <!-- REGISTER -->
-      <div id="register" class="hidden">
-        <input id="name" placeholder="姓名" autocomplete="name" />
-        <input id="phone" placeholder="電話" inputmode="tel" />
-        <input id="employee_no" placeholder="員工編號" />
-        <button id="btn-register" class="big-btn">完成註冊並打卡</button>
-      </div>
-
-      <!-- ATTENDANCE -->
-      <div id="attendance" class="hidden">
-        <p id="me" style="margin:8px 0 0;font-weight:600"></p>
-        <button id="btn-punch" class="big-btn">📍 打卡</button>
-        <button id="btn-history" class="big-btn secondary">我的打卡紀錄</button>
-
-        <div id="records" class="hidden" aria-live="polite"></div>
-      </div>
-
-      <div id="msg" class="small" role="status"></div>
-    </div>
-
-    <footer>裝置ID：<span id="device_id" style="font-family:monospace"></span></footer>
+    <div id="status"></div>
+    <div id="error"></div>
   </div>
 
 <script>
-/* ========== 重要設定：把你的 Apps Script Web App URL 放在這裡 ========== */
-const API_URL = "https://script.google.com/macros/s/AKfycbyzXMm-mVeNEY1dZlmkdFluG2f3X5_OfTBykr_3vkEbNU9zMQbLqjYGeetE-5b2YPPk/exec";
-/* ===================================================================== */
+/* 你的 Apps Script 網址（必須是部署成 Web App）
+   e.g. https://script.google.com/macros/s/XXXXXX/exec
+*/
+const API_URL = "https://script.google.com/macros/s/AKfycbyF8AhB0SyHvsoDo1O8JkrvPpj4g4inAiEPiK6bbFLLrMRKdIG5sh05e0B5PgK2kKkc/exec";
 
-const $ = id => document.getElementById(id);
-const statusEl = $("status");
-const msgEl = $("msg");
-const registerEl = $("register");
-const attendanceEl = $("attendance");
-const recordsEl = $("records");
-const deviceEl = $("device_id");
-const meEl = $("me");
+document.getElementById("btnScan").addEventListener("click", handleCheckin);
 
-let device_id = localStorage.getItem("device_id");
-let user = null; // { user_id, name, phone, employee_no, device_id }
+/**
+ * 主流程：取得使用者 ID → 送到後端 → 顯示結果
+ */
+async function handleCheckin() {
+  const btn = document.getElementById("btnScan");
+  const status = document.getElementById("status");
+  const error = document.getElementById("error");
 
-function genId(prefix='u-'){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
-function setStatus(s){ statusEl.textContent = s; }
-function setMsg(t){ msgEl.textContent = t; setTimeout(()=>{ if(msgEl.textContent===t) msgEl.textContent=''; }, 4000); }
+  error.style.display = "none";
+  status.innerHTML = "";
+  btn.disabled = true;
+  btn.innerText = "打卡中...";
 
-/* API POST - 不加 headers（Apps Script ContentService 可接受） */
-async function apiPost(body){
-  try{
+  try {
+    /** 
+     * 模擬 NFC 讀卡  
+     * 如果你之後接實體 NFC 讀取器，可在這裡塞入真正的 UID 
+     */
+    const fakeUserId = "USER123"; // 手機測試可先固定寫死
+
+    const payload = {
+      userId: fakeUserId,
+      time: new Date().toISOString()
+    };
+
+    // 呼叫 Google Apps Script
     const res = await fetch(API_URL, {
       method: "POST",
-      body: JSON.stringify(body)
+      mode: "cors",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
     });
-    return await res.json();
-  }catch(e){
-    console.error("apiPost error", e);
-    throw e;
-  }
-}
 
-/* API GET */
-async function apiGet(params){
-  const qs = new URLSearchParams(params).toString();
-  const res = await fetch(API_URL + "?" + qs);
-  return await res.json();
-}
+    const json = await res.json();
 
-/* 讀本機 user 資訊 */
-function loadLocalUser(){
-  const uid = localStorage.getItem("user_id");
-  if(!uid) return null;
-  return {
-    user_id: uid,
-    name: localStorage.getItem("name"),
-    phone: localStorage.getItem("phone"),
-    employee_no: localStorage.getItem("employee_no"),
-    device_id: localStorage.getItem("device_id")
-  };
-}
-
-/* 存本機 user 資訊 */
-function saveLocalUser(u){
-  localStorage.setItem("user_id", u.user_id);
-  localStorage.setItem("name", u.name);
-  localStorage.setItem("phone", u.phone);
-  localStorage.setItem("employee_no", u.employee_no);
-  localStorage.setItem("device_id", u.device_id);
-}
-
-/* 取得 GPS（回傳字串） */
-function getLocation(timeoutMs=8000){
-  return new Promise(resolve=>{
-    if(!navigator.geolocation){
-      resolve("NoGPS");
-      return;
-    }
-    let done=false;
-    navigator.geolocation.getCurrentPosition(pos=>{
-      if(done) return;
-      done=true;
-      resolve(`${pos.coords.latitude},${pos.coords.longitude}`);
-    }, err=>{
-      if(done) return;
-      done=true;
-      resolve("GPS拒絕");
-    }, { enableHighAccuracy:true, timeout: timeoutMs });
-    setTimeout(()=>{ if(!done){ done=true; resolve("GPS_TIMEOUT"); } }, timeoutMs+200);
-  });
-}
-
-/* 初始化 */
-async function init(){
-  try{
-    setStatus("初始化裝置…");
-    // device_id
-    if(!device_id){
-      device_id = "dev-" + Math.random().toString(36).slice(2,12);
-      localStorage.setItem("device_id", device_id);
-    }
-    deviceEl.textContent = device_id;
-
-    // 先看 local storage 有沒有 user
-    const local = loadLocalUser();
-    if(local && local.device_id === device_id){
-      user = local;
-      // 也可向後端確認（容錯）
-      setStatus("檢查使用者資料…");
-      const resp = await apiPost({ action: "getUser", device_id: device_id });
-      // 後端可能回傳不同格式：支援多種判斷
-      if(resp && (resp.status === "found" || resp.status === "success" || resp.user || resp.user_id || resp.user_id===undefined===false)){
-        // 若後端回 user in resp.user
-        if(resp.user){ user = Object.assign(user, resp.user); }
-        // show attendance UI
-        showAttendance();
-        setStatus("準備就緒");
-        return;
-      } else {
-        // 若後端沒找到，就當成未註冊（但本機仍有資料）；為安全起見顯示註冊畫面讓使用者覆核
-        setStatus("請確認資料或重新註冊");
-        showRegister();
-        return;
-      }
-    }
-
-    // 若 local 無 user，嘗試用 device_id 查後端
-    setStatus("檢查是否已註冊（伺服器）…");
-    const result = await apiPost({ action: "getUser", device_id: device_id });
-    // 可能回傳 {status:"found", user:{...}} 或直接 user object 或 {status:"not_found"}
-    if(result && result.status === "found" && result.user){
-      user = result.user;
-      saveLocalUser(user);
-      showAttendance();
-      setStatus("歡迎回來");
-      return;
-    }
-    if(result && result.status === "success" && result.user){
-      user = result.user;
-      saveLocalUser(user);
-      showAttendance();
-      setStatus("歡迎回來");
-      return;
-    }
-    // 有些實作會直接回傳 user fields (user_id present)
-    if(result && result.user_id){
-      user = {
-        user_id: result.user_id,
-        name: result.name || localStorage.getItem("name") || "",
-        phone: result.phone || localStorage.getItem("phone") || "",
-        employee_no: result.employee_no || localStorage.getItem("employee_no") || "",
-        device_id: device_id
-      };
-      saveLocalUser(user);
-      showAttendance();
-      setStatus("歡迎回來");
-      return;
-    }
-
-    // 若都沒有，顯示註冊
-    setStatus("未註冊 - 請註冊");
-    showRegister();
-
-  }catch(err){
-    console.error("init error", err);
-    setStatus("初始化錯誤");
-    showRegister();
-  }
-}
-
-/* 顯示註冊區 */
-function showRegister(){
-  registerEl.classList.remove("hidden");
-  attendanceEl.classList.add("hidden");
-}
-
-/* 顯示打卡區 */
-function showAttendance(){
-  registerEl.classList.add("hidden");
-  attendanceEl.classList.remove("hidden");
-  meEl.textContent = `${user.name || "未知姓名"} （${user.employee_no || ""}）`;
-}
-
-/* 註冊流程 */
-async function doRegister(){
-  const name = document.getElementById("name").value.trim();
-  const phone = document.getElementById("phone").value.trim();
-  const employee_no = document.getElementById("employee_no").value.trim();
-  if(!name || !phone || !employee_no){ setMsg("請填寫所有欄位"); return; }
-
-  setStatus("註冊中…");
-  const newUser = {
-    user_id: genId("u-"),
-    name, phone, employee_no,
-    device_id
-  };
-
-  try{
-    const resp = await apiPost({ action: "register", ...newUser });
-    // 支援多種後端回傳格式
-    if(resp && (resp.status === "ok" || resp.status === "success")){
-      saveLocalUser(newUser);
-      user = newUser;
-      setMsg("註冊成功");
-      showAttendance();
-      setStatus("註冊完成");
-      // 註冊完成後直接打卡（可留在前端決定）
-      await doPunch();
-      return;
+    if (json.success) {
+      status.innerHTML = `✔ 打卡成功！<br>時間：${json.timestamp}`;
     } else {
-      console.warn("register resp", resp);
-      setMsg("註冊失敗，請稍後再試");
-      setStatus("註冊失敗");
+      error.style.display = "block";
+      error.innerText = "❌ 打卡失敗：" + (json.message || "未知錯誤");
     }
-  }catch(e){
+
+  } catch (e) {
     console.error(e);
-    setMsg("註冊錯誤，請檢查網路");
-    setStatus("網路錯誤");
+    error.style.display = "block";
+    error.innerText = "❌ 無法連線後端，請稍後再試";
   }
+
+  btn.disabled = false;
+  btn.innerText = "打卡";
 }
-
-/* 打卡流程 */
-async function doPunch(){
-  setStatus("取得 GPS…");
-  const loc = await getLocation();
-  setStatus("送出打卡資料…");
-
-  // 構造送出資料（後端會以 device_id 找對應 user，若後端需要 user_id 也一併送）
-  const payload = {
-    action: "attendance",
-    user_id: user?.user_id || localStorage.getItem("user_id") || null,
-    name: user?.name || localStorage.getItem("name") || "",
-    location: loc,
-    device_id: device_id
-  };
-
-  try{
-    const resp = await apiPost(payload);
-    if(resp && (resp.status === "ok" || resp.status === "success")){
-      setMsg("打卡成功");
-      setStatus("打卡完成");
-    } else {
-      console.warn("attendance resp", resp);
-      setMsg("打卡失敗");
-      setStatus("打卡失敗");
-    }
-  }catch(e){
-    console.error("doPunch error", e);
-    setMsg("無法連線，請稍後再試");
-    setStatus("網路錯誤");
-  }
-}
-
-/* 查詢個人打卡紀錄（GET） */
-async function showMyRecords(){
-  setStatus("讀取紀錄…");
-  recordsEl.innerHTML = "";
-  recordsEl.classList.remove("hidden");
-  try{
-    const uid = user?.user_id || localStorage.getItem("user_id");
-    if(!uid){ setMsg("找不到 user_id"); setStatus("錯誤"); return; }
-    const resp = await apiGet({ action: "attendance_records", user_id: uid });
-    if(resp && resp.status === "success" && Array.isArray(resp.records)){
-      if(resp.records.length === 0){
-        recordsEl.innerHTML = "<div class='rec'>尚無打卡紀錄</div>";
-      } else {
-        recordsEl.innerHTML = resp.records.map(r=>{
-          const t = (new Date(r.timestamp)).toLocaleString();
-          return `<div class="rec"><div style="font-weight:600">${r.name||""}</div><div style="color:#666">${t}</div><div style="font-size:13px;color:#666">${r.location||""}</div></div>`;
-        }).join("");
-      }
-      setStatus("紀錄載入完成");
-    } else if(resp && Array.isArray(resp.records)){ // 某些後端會直接回 records
-      if(resp.records.length === 0) recordsEl.innerHTML = "<div class='rec'>尚無打卡紀錄</div>";
-      else recordsEl.innerHTML = resp.records.map(r=>`<div class="rec"><div style="font-weight:600">${r.name||''}</div><div style="color:#666">${(new Date(r.timestamp)).toLocaleString()}</div><div style="font-size:13px;color:#666">${r.location||''}</div></div>`).join("");
-      setStatus("紀錄載入完成");
-    } else {
-      console.warn("records resp", resp);
-      recordsEl.innerHTML = "<div class='rec'>讀取失敗</div>";
-      setStatus("讀取失敗");
-    }
-  }catch(e){
-    console.error("showMyRecords error", e);
-    recordsEl.innerHTML = "<div class='rec'>讀取錯誤</div>";
-    setStatus("網路錯誤");
-  }
-}
-
-/* ========== Event bindings ========== */
-document.getElementById("btn-register").addEventListener("click", doRegister);
-document.getElementById("btn-punch").addEventListener("click", doPunch);
-document.getElementById("btn-history").addEventListener("click", showMyRecords);
-
-/* 啟動 */
-init();
 </script>
+
 </body>
 </html>
-
