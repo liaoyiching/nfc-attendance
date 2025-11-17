@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFC 打卡系統</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #register-section, #punch-section { margin-top: 20px; }
+    input { margin-bottom: 10px; display: block; }
+  </style>
+</head>
+<body>
+  <h2>NFC 打卡系統</h2>
+  <div id="loading">載入中…</div>
+
+  <div id="register-section" style="display:none;">
+    <h3>首次註冊</h3>
+    <label>姓名：<input id="name"></label>
+    <label>電話：<input id="phone"></label>
+    <label>員工編號：<input id="employee_no"></label>
+    <button onclick="submitRegister()">註冊並打卡</button>
+  </div>
+
+  <div id="punch-section" style="display:none;">
+    <h3 id="welcome"></h3>
+    <button onclick="doPunch()">打卡</button>
+  </div>
+
+  <script>
+    // Apps Script Web App URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbww0q8nJE20wTy-q-hmYmDCxK3FwUw68K8PSvk0Bs0Az8WFf0HkmU5ZynUaMJiGBLE/exec";
+
+    const deviceId = localStorage.getItem("device_id") || crypto.randomUUID();
+    localStorage.setItem("device_id", deviceId);
+
+    let currentUser = null;
+
+    async function apiCall(action, data={}) {
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, ...data })
+        });
+        return await res.json();
+      } catch (err) {
+        console.error(err);
+        alert("無法連線至伺服器，請檢查網路或 API_URL 設定");
+        return null;
+      }
+    }
+
+    async function init() {
+      currentUser = await apiCall("getUser", { device_id: deviceId });
+      document.getElementById("loading").style.display = "none";
+
+      if(currentUser) {
+        document.getElementById("welcome").innerText = `歡迎，${currentUser.name}`;
+        document.getElementById("punch-section").style.display = "block";
+      } else {
+        document.getElementById("register-section").style.display = "block";
+      }
+    }
+
+    async function submitRegister() {
+      const data = {
+        user_id: crypto.randomUUID(),
+        name: document.getElementById("name").value,
+        phone: document.getElementById("phone").value,
+        employee_no: document.getElementById("employee_no").value,
+        device_id: deviceId
+      };
+      const res = await apiCall("register", { data });
+      if(res?.status === "ok") {
+        alert("註冊完成！");
+        currentUser = data;
+        document.getElementById("register-section").style.display = "none";
+        document.getElementById("punch-section").style.display = "block";
+        doPunch();
+      }
+    }
+
+    async function doPunch() {
+      if(!navigator.geolocation) {
+        alert("您的瀏覽器不支援 GPS 定位");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const loc = `${pos.coords.latitude},${pos.coords.longitude}`;
+        const data = {
+          user_id: currentUser.user_id,
+          name: currentUser.name,
+          location: loc,
+          device_id: deviceId
+        };
+        const res = await apiCall("punch", { data });
+        if(res?.status === "ok") alert("打卡成功！");
+      }, err => {
+        alert("無法取得 GPS：" + err.message);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
