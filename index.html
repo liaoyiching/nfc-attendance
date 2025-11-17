@@ -1,108 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NFC 打卡系統</title>
+
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    #register-section, #punch-section { margin-top: 20px; }
-    input { margin-bottom: 10px; display: block; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 450px;
+      margin: auto;
+    }
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #aaa;
+    }
+    #loading {
+      display: none;
+      text-align: center;
+      padding: 10px;
+      font-size: 18px;
+    }
   </style>
 </head>
+
 <body>
+
+<div class="card">
   <h2>NFC 打卡系統</h2>
-  <div id="loading">載入中…</div>
+
+  <div id="loading">載入中...</div>
 
   <div id="register-section" style="display:none;">
     <h3>首次註冊</h3>
-    <label>姓名：<input id="name"></label>
-    <label>電話：<input id="phone"></label>
-    <label>員工編號：<input id="employee_no"></label>
-    <button onclick="submitRegister()">註冊並打卡</button>
+
+    <input id="name" placeholder="姓名" />
+    <input id="phone" placeholder="電話" />
+    <input id="employee_no" placeholder="員工編號" />
+
+    <button onclick="submitRegister()">送出註冊</button>
   </div>
 
-  <div id="punch-section" style="display:none;">
-    <h3 id="welcome"></h3>
-    <button onclick="doPunch()">打卡</button>
+  <div id="attendance-section" style="display:none;">
+    <h3>歡迎回來</h3>
+    <p id="user-info"></p>
+    <button onclick="submitAttendance()">打卡</button>
   </div>
 
-  <script>
-    // Apps Script Web App URL
-    const API_URL = "https://script.google.com/macros/s/AKfycbxS7nVwtw-vbcAMFEd6u70mLwA6iz6PS2pAbu5TmtgBqu4WvmdrXxFyo2gXUDdvVzPa/exec";
+  <div id="result"></div>
+</div>
 
-    const deviceId = localStorage.getItem("device_id") || crypto.randomUUID();
-    localStorage.setItem("device_id", deviceId);
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycby9fKayMRkoTvODexbFTRsofDcGneh_pf9acBKHRg-MKulNbCgQZIHYRjbliGnXiWj8/exec";
 
-    let currentUser = null;
+let deviceId = localStorage.getItem("device_id");
 
-    async function apiCall(action, data={}) {
-      try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, ...data })
-        });
-        return await res.json();
-      } catch (err) {
-        console.error(err);
-        alert("無法連線至伺服器，請檢查網路或 API_URL 設定");
-        return null;
-      }
+// 產生 device_id（第一次使用）
+function generateDeviceId() {
+  const id = "dev-" + Math.random().toString(36).substring(2,12);
+  localStorage.setItem("device_id", id);
+  return id;
+}
+
+async function init() {
+  document.getElementById("loading").style.display = "block";
+
+  if (!deviceId) {
+    deviceId = generateDeviceId();
+  }
+
+  // 查是否為註冊使用者
+  const user = await apiRequest({
+    action: "getUser",
+    device_id: deviceId
+  });
+
+  document.getElementById("loading").style.display = "none";
+
+  if (user && user.user_id) {
+    // 已註冊
+    document.getElementById("attendance-section").style.display = "block";
+    document.getElementById("user-info").innerHTML =
+      `${user.name}（${user.employee_no}）`;
+  } else {
+    // 尚未註冊
+    document.getElementById("register-section").style.display = "block";
+  }
+}
+
+/** API 請求 */
+async function apiRequest(body) {
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    return res.json();
+  } catch (e) {
+    alert("伺服器連線失敗");
+    console.log(e);
+  }
+}
+
+/** 註冊 */
+async function submitRegister() {
+  const name = document.getElementById("name").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const employee_no = document.getElementById("employee_no").value.trim();
+
+  if (!name || !phone || !employee_no) {
+    alert("請填寫完整資料");
+    return;
+  }
+
+  const user_id = "u-" + Date.now();
+
+  const result = await apiRequest({
+    action: "register",
+    user_id,
+    name,
+    phone,
+    employee_no,
+    device_id: deviceId
+  });
+
+  if (result.status === "ok") {
+    alert("註冊成功！請重新打卡。");
+    location.reload();
+  }
+}
+
+/** 打卡 */
+async function submitAttendance() {
+  const location = await getLocation();
+
+  const result = await apiRequest({
+    action: "attendance",
+    user_id: "ignored", // 由後端用 device_id 找使用者
+    name: "ignored",
+    location,
+    device_id: deviceId
+  });
+
+  if (result.status === "ok") {
+    alert("打卡成功！");
+  } else {
+    alert("打卡失敗");
+  }
+}
+
+/** 取得 GPS */
+function getLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve("No GPS");
+      return;
     }
 
-    async function init() {
-      currentUser = await apiCall("getUser", { device_id: deviceId });
-      document.getElementById("loading").style.display = "none";
-
-      if(currentUser) {
-        document.getElementById("welcome").innerText = `歡迎，${currentUser.name}`;
-        document.getElementById("punch-section").style.display = "block";
-      } else {
-        document.getElementById("register-section").style.display = "block";
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        resolve(`${pos.coords.latitude},${pos.coords.longitude}`);
+      },
+      err => {
+        resolve("GPS拒絕");
       }
-    }
+    );
+  });
+}
 
-    async function submitRegister() {
-      const data = {
-        user_id: crypto.randomUUID(),
-        name: document.getElementById("name").value,
-        phone: document.getElementById("phone").value,
-        employee_no: document.getElementById("employee_no").value,
-        device_id: deviceId
-      };
-      const res = await apiCall("register", { data });
-      if(res?.status === "ok") {
-        alert("註冊完成！");
-        currentUser = data;
-        document.getElementById("register-section").style.display = "none";
-        document.getElementById("punch-section").style.display = "block";
-        doPunch();
-      }
-    }
+init();
+</script>
 
-    async function doPunch() {
-      if(!navigator.geolocation) {
-        alert("您的瀏覽器不支援 GPS 定位");
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const loc = `${pos.coords.latitude},${pos.coords.longitude}`;
-        const data = {
-          user_id: currentUser.user_id,
-          name: currentUser.name,
-          location: loc,
-          device_id: deviceId
-        };
-        const res = await apiCall("punch", { data });
-        if(res?.status === "ok") alert("打卡成功！");
-      }, err => {
-        alert("無法取得 GPS：" + err.message);
-      });
-    }
-
-    init();
-  </script>
 </body>
 </html>
-
