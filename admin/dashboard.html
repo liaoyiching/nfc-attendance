@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin Dashboard</title></head>
+<body>
+  <h2>後台 - 出勤紀錄</h2>
+  <div id="controls">
+    <button id="btnLoad">載入全部紀錄</button>
+    <a id="aExport" href="#">下載 CSV</a>
+  </div>
+  <div id="table">尚未載入</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzoIHviq1SJvzWcN4LU8x0hHZg6iXOosSobQnrqev93RyUZVC-LX5dXHMJq6YWufXjV/exec";
+
+document.getElementById('btnLoad').addEventListener('click', async ()=>{
+  document.getElementById('table').innerText = '載入中...';
+  try {
+    const res = await fetch(API_URL + '?action=listAttendance').then(r=>r.json());
+    if (res && res.records) {
+      let html = '<table border=1><tr><th>時間</th><th>user_id</th><th>name</th><th>location</th><th>device_id</th></tr>';
+      res.records.forEach(r => {
+        html += `<tr><td>${new Date(r.timestamp).toLocaleString()}</td><td>${r.user_id}</td><td>${r.name}</td><td>${r.location}</td><td>${r.device_id}</td></tr>`;
+      });
+      html += '</table>';
+      document.getElementById('table').innerHTML = html;
+    } else {
+      document.getElementById('table').innerText = '讀取失敗';
+    }
+  } catch (err) {
+    console.error(err);
+    document.getElementById('table').innerText = '連線失敗';
+  }
+});
+
+// 匯出CSV（直接連到後端 exportCsv）
+document.getElementById('aExport').href = API_URL + '?action=exportCsv';
+document.getElementById('aExport').download = 'attendance.csv';
+</script>
+</body></html>
