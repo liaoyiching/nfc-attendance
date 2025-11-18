@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>註冊</title></head>
+<body>
+  <h2>首次註冊</h2>
+  <form id="f">
+    <label>姓名<input id="name" required></label><br>
+    <label>電話<input id="phone" required></label><br>
+    <label>員工編號<input id="employee_no" required></label><br>
+    <button type="submit">註冊並打卡</button>
+  </form>
+  <div id="msg"></div>
+
+<script>
+/* 註冊：第一次打卡會先註冊 */
+/* 把這裡改成你的 Web App URL */
+const API_URL = "https://script.google.com/macros/s/AKfycbxfR3LevCVI5isVSgMeo_ozzaK4N-sDxFKNTsR04KGxnjMYCTtnqoetBDv1kZzLmxwS/exec";
+const device_id = localStorage.getItem('device_id');
+
+document.getElementById('f').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = document.getElementById('name').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+  const employee_no = document.getElementById('employee_no').value.trim();
+  if (!name || !phone || !employee_no) { document.getElementById('msg').innerText='請完整填寫'; return; }
+
+  const payload = {
+    action: 'register',
+    user_id: 'u-' + Date.now(),
+    name, phone, employee_no, device_id
+  };
+
+  try {
+    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) }).then(r=>r.json());
+    if (res && res.success) {
+      // 存本機以便後續打卡直接使用
+      localStorage.setItem('user_id', payload.user_id);
+      localStorage.setItem('name', name);
+      localStorage.setItem('phone', phone);
+      localStorage.setItem('employee_no', employee_no);
+      document.getElementById('msg').innerText = '註冊成功，開始打卡...';
+      // 直接導到打卡頁
+      setTimeout(()=>location.href='attendance.html', 800);
+    } else {
+      document.getElementById('msg').innerText = '註冊失敗: ' + (res && res.message || 'unknown');
+    }
+  } catch (err) {
+    console.error(err);
+    document.getElementById('msg').innerText = '連線錯誤';
+  }
+});
+</script>
+</body>
+</html>

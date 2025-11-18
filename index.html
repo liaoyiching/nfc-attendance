@@ -1,1 +1,44 @@
-<!DOCTYPE html><html><body><h1>NFC Attendance</h1></body></html>
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFC 打卡（入口）</title>
+</head>
+<body>
+  <h2>NFC 打卡 - 入口</h2>
+  <p id="info">檢查裝置中…</p>
+
+<script>
+/* 入口 — 會檢查是否註冊並導向 */
+
+/* 把這裡改成你的 Web App URL */
+const API_URL = "https://script.google.com/macros/s/AKfycbxfR3LevCVI5isVSgMeo_ozzaK4N-sDxFKNTsR04KGxnjMYCTtnqoetBDv1kZzLmxwS/exec";
+
+/* 產生或取 device_id */
+let device_id = localStorage.getItem('device_id');
+if (!device_id) {
+  device_id = 'dev-' + Math.random().toString(36).slice(2,10);
+  localStorage.setItem('device_id', device_id);
+}
+
+document.getElementById('info').innerText = '裝置ID: ' + device_id + '，檢查是否已註冊...';
+
+/* 向後端詢問是否註冊 */
+fetch(API_URL, {
+  method: 'POST',
+  body: JSON.stringify({ action: 'getUser', device_id: device_id })
+}).then(r => r.json())
+  .then(res => {
+    if (res && res.user && res.user.user_id) {
+      // 已註冊 → 前往打卡頁
+      window.location.href = 'attendance.html';
+    } else {
+      window.location.href = 'register.html';
+    }
+  }).catch(err => {
+    console.error(err);
+    document.getElementById('info').innerText = '無法連線後端，請稍後再試';
+  });
+</script>
+</body>
+</html>

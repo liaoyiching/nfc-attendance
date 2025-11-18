@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的紀錄</title></head>
+<body>
+  <h2>我的打卡紀錄</h2>
+  <div id="list">載入中...</div>
+  <p><a href="attendance.html">回打卡</a></p>
+
+<script>
+/* 員工打卡頁，會取得 GPS 並送出 */
+/* 把這裡改成你的 Web App URL */
+const API_URL = "https://script.google.com/macros/s/AKfycbxfR3LevCVI5isVSgMeo_ozzaK4N-sDxFKNTsR04KGxnjMYCTtnqoetBDv1kZzLmxwS/exec";
+const user_id = localStorage.getItem('user_id');
+async function load(){
+  if(!user_id){ document.getElementById('list').innerText='找不到 user_id，請先註冊'; return; }
+  try {
+    const res = await fetch(API_URL + '?action=attendance_records&user_id=' + encodeURIComponent(user_id)).then(r=>r.json());
+    if (res && res.records){
+      const html = res.records.map(r => `<div>${new Date(r.timestamp).toLocaleString()} — ${r.location}</div>`).join('');
+      document.getElementById('list').innerHTML = html || '尚無紀錄';
+    } else {
+      document.getElementById('list').innerText = '讀取失敗';
+    }
+  } catch (err) {
+    console.error(err);
+    document.getElementById('list').innerText = '連線失敗';
+  }
+}
+load();
+</script>
+</body>
+</html>

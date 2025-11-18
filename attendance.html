@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>打卡</title></head>
+<body>
+  <h2>打卡頁</h2>
+  <p id="me"></p>
+  <button id="btn">打卡</button>
+  <p id="status"></p>
+  <p><a href="records.html">我的紀錄</a></p>
+
+<script>
+/* 員工打卡頁，會取得 GPS 並送出 */
+/* 把這裡改成你的 Web App URL */
+const API_URL = "https://script.google.com/macros/s/AKfycbxfR3LevCVI5isVSgMeo_ozzaK4N-sDxFKNTsR04KGxnjMYCTtnqoetBDv1kZzLmxwS/exec";
+const device_id = localStorage.getItem('device_id');
+const user_id = localStorage.getItem('user_id');
+const name = localStorage.getItem('name') || '';
+
+document.getElementById('me').innerText = `裝置: ${device_id}，使用者: ${name || '(未設定)'}`;
+
+document.getElementById('btn').addEventListener('click', async () => {
+  document.getElementById('status').innerText = '定位中...';
+  // 取得 GPS
+  const loc = await new Promise(resolve => {
+    if (!navigator.geolocation) return resolve('NoGPS');
+    navigator.geolocation.getCurrentPosition(p => resolve(p.coords.latitude + ',' + p.coords.longitude),
+      err => resolve('GPS拒絕'), { enableHighAccuracy:true, timeout:8000 });
+  });
+
+  document.getElementById('status').innerText = '送出打卡資料...';
+  const payload = { action:'attendance', user_id: user_id, name: name, location: loc, device_id: device_id };
+
+  try {
+    // 若你曾遇到 CORS 問題，可加入 mode:'no-cors'（但無法讀回應）
+    const res = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) }).then(r=>r.json());
+    if (res && res.success) {
+      document.getElementById('status').innerText = '打卡成功';
+    } else {
+      document.getElementById('status').innerText = '打卡失敗';
+    }
+  } catch (err) {
+    console.error(err);
+    document.getElementById('status').innerText = '連線失敗';
+  }
+});
+</script>
+</body>
+</html>
