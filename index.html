@@ -1,133 +1,42 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NFC 員工打卡系統</title>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f6f6f6;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
-    }
-
-    .container {
-      max-width: 400px;
-      margin: auto;
-      background: #fff;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    }
-
-    button {
-      width: 100%;
-      padding: 15px;
-      margin-top: 20px;
-      border: none;
-      background: #1a73e8;
-      color: white;
-      font-size: 18px;
-      border-radius: 10px;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: .5;
-    }
-
-    #status {
-      margin-top: 20px;
-      font-size: 16px;
-      font-weight: bold;
-    }
-
-    #error {
-      margin-top: 10px;
-      color: red;
-      display: none;
-    }
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFC 打卡（入口）</title>
 </head>
-
 <body>
-  <div class="container">
-    <h2>NFC 員工打卡</h2>
-    <p>請使用 NFC 卡感應或按下按鈕進行打卡。</p>
-
-    <!-- NFC 打卡按鈕（手機沒 NFC 也可使用） -->
-    <button id="btnScan">打卡</button>
-
-    <div id="status"></div>
-    <div id="error"></div>
-  </div>
+  <h2>NFC 打卡 - 入口</h2>
+  <p id="info">檢查裝置中…</p>
 
 <script>
-/* 你的 Apps Script 網址（必須是部署成 Web App）
-   e.g. https://script.google.com/macros/s/XXXXXX/exec
-*/
-const API_URL = "https://script.google.com/macros/s/AKfycbyF8AhB0SyHvsoDo1O8JkrvPpj4g4inAiEPiK6bbFLLrMRKdIG5sh05e0B5PgK2kKkc/exec";
+/* 把這裡改成你的 Web App URL */
+const API_URL = "https://script.google.com/macros/s/AKfycbxfR3LevCVI5isVSgMeo_ozzaK4N-sDxFKNTsR04KGxnjMYCTtnqoetBDv1kZzLmxwS/exec";
 
-document.getElementById("btnScan").addEventListener("click", handleCheckin);
-
-/**
- * 主流程：取得使用者 ID → 送到後端 → 顯示結果
- */
-async function handleCheckin() {
-  const btn = document.getElementById("btnScan");
-  const status = document.getElementById("status");
-  const error = document.getElementById("error");
-
-  error.style.display = "none";
-  status.innerHTML = "";
-  btn.disabled = true;
-  btn.innerText = "打卡中...";
-
-  try {
-    /** 
-     * 模擬 NFC 讀卡  
-     * 如果你之後接實體 NFC 讀取器，可在這裡塞入真正的 UID 
-     */
-    const fakeUserId = "USER123"; // 手機測試可先固定寫死
-
-    const payload = {
-      userId: fakeUserId,
-      time: new Date().toISOString()
-    };
-
-    // 呼叫 Google Apps Script
-    const res = await fetch(API_URL, {
-      method: "POST",
-      mode: "cors",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const json = await res.json();
-
-    if (json.success) {
-      status.innerHTML = `✔ 打卡成功！<br>時間：${json.timestamp}`;
-    } else {
-      error.style.display = "block";
-      error.innerText = "❌ 打卡失敗：" + (json.message || "未知錯誤");
-    }
-
-  } catch (e) {
-    console.error(e);
-    error.style.display = "block";
-    error.innerText = "❌ 無法連線後端，請稍後再試";
-  }
-
-  btn.disabled = false;
-  btn.innerText = "打卡";
+/* 產生或取 device_id */
+let device_id = localStorage.getItem('device_id');
+if (!device_id) {
+  device_id = 'dev-' + Math.random().toString(36).slice(2,10);
+  localStorage.setItem('device_id', device_id);
 }
-</script>
 
+document.getElementById('info').innerText = '裝置ID: ' + device_id + '，檢查是否已註冊...';
+
+/* 向後端詢問是否註冊 */
+fetch(API_URL, {
+  method: 'POST',
+  body: JSON.stringify({ action: 'getUser', device_id: device_id })
+}).then(r => r.json())
+  .then(res => {
+    if (res && res.user && res.user.user_id) {
+      // 已註冊 → 前往打卡頁
+      window.location.href = 'attendance.html';
+    } else {
+      window.location.href = 'register.html';
+    }
+  }).catch(err => {
+    console.error(err);
+    document.getElementById('info').innerText = '無法連線後端，請稍後再試';
+  });
+</script>
 </body>
 </html>
-
